@@ -40,7 +40,7 @@ final class RoomsService[F[_]](
     // todo: is that safe, should we track started fibers?
     def next: F[Unit] = q.take.flatMap { room =>
       Spawn[F].start(room.deamon).void
-    } >> next
+    }
 
     Spawn[F].start(next).void
 
@@ -65,7 +65,7 @@ final class Room[F[_]](
   def stop: F[Unit] = q.offer(None)
 
   // todo: use resource ?
-  // close room after some time
+  // todo: close room after some time
   def deamon(using Concurrent[F]): F[Unit] =
     Stream
       .fromQueueNoneTerminated(q)

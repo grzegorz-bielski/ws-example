@@ -14,19 +14,17 @@ import cats.effect.std.Queue
 import fs2.concurrent.Topic
 import org.http4s.server.websocket.WebSocketBuilder2
 
-// todo: multiple rooms
-// https://github.dev/MartinSnyder/http4s-chatserver/blob/master/src/main/scala/com/martinsnyder/chatserver/ChatRoutes.scala
-
 final class RoomsRoutes[F[_]](rooms: RoomsService[F]) extends Http4sDsl[F]:
   def wsRoutes(using Async[F])(builder: WebSocketBuilder2[F]): HttpRoutes[F] =
     HttpRoutes.of[F] { case GET -> Root / "rooms" / roomName / "connect" / id =>
       val out: Stream[F, WebSocketFrame] =
         rooms.subscribe(roomName).map(msg => WebSocketFrame.Text(msg.content))
+
       val in: Pipe[F, WebSocketFrame, Unit] =
         _.evalMap(a => Sync[F].delay(scribe.info(a.toString)).as(a))
           .collect {
             // case Close(_) => ???
-            case WebSocketFrame.Text(text, _) => RoomMessage(id, text)
+            case WebSocketFrame.Text(text, _) => RoomMessage(id, s"$id: $text")
           }
           .foreach(rooms.publish(roomName))
 
