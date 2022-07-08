@@ -14,16 +14,23 @@ import org.http4s.server.*
 import org.http4s.ember.server.EmberServerBuilder
 import com.comcast.ip4s.Host
 import com.comcast.ip4s.Port
+import cats.effect.std.Queue
+import fs2.concurrent.Topic
 
 object WSExample extends IOApp.Simple with Http4sDsl[IO]:
   def run =
     for
-      app <- allRoutes[IO]
+      roomsRoutes <- RoomsRoutes.setup[IO]
       _ <- EmberServerBuilder
         .default[IO]
         .withHostOption(Host.fromString("0.0.0.0"))
         .withPort(Port.fromInt(8090).get)
-        .withHttpApp(app)
+        .withHttpWebSocketApp { wsb =>
+          (roomsRoutes.routes
+            .combineK(HealthCheckRoutes[IO].routes)
+            .combineK(roomsRoutes.wsRoutes(wsb)))
+            .orNotFound
+        }
         .withErrorHandler { e =>
           IO.println("Could not handle a request" -> e) *> InternalServerError()
         }
@@ -31,7 +38,3 @@ object WSExample extends IOApp.Simple with Http4sDsl[IO]:
         .use(_ => IO.never)
         .void
     yield ()
-
-  def allRoutes[F[_]: Async]: F[HttpApp[F]] =
-    for given RoomsRepistory[F] <- RoomsRepistory.inMemory[F]
-    yield (RoomsService[F].routes <+> HealthCheckService[F].routes).orNotFound

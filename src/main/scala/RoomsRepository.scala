@@ -10,19 +10,19 @@ import io.circe.syntax.*
 import org.http4s.dsl.*
 
 trait RoomsRepistory[F[_]]:
-  def get(name: String): F[Option[Room]]
-  def getAll: F[Vector[Room]]
-  def update(room: Room): F[Unit]
+  def get(name: String): F[Option[Room[F]]]
+  def getAll: F[Vector[Room[F]]]
+  def update(room: Room[F]): F[Unit]
 
 object RoomsRepistory:
   def inMemory[F[_]: Sync]: F[RoomsRepistory[F]] =
-    Ref[F].of(Rooms.empty).map { ref =>
+    Ref[F].of(Vector.empty[Room[F]]).map { ref =>
       new RoomsRepistory[F]:
-        def get(name: String) = ref.get.map(_.get(name))
-        def getAll = ref.get.map(_.values.toVector)
-        def update(room: Room) = ref.update(_.updated(room.name, room))
+        def get(name: String): F[Option[Room[F]]] =
+          ref.get.map(_.find(_.name == name))
+        def getAll = ref.get
+        def update(room: Room[F]) =
+          ref.update(
+            _.filterNot(_.name == room.name) :+ room
+          )
     }
-
-type Rooms = Map[String, Room]
-object Rooms:
-  def empty: Rooms = Map.empty
